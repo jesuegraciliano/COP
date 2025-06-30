@@ -9,12 +9,13 @@ def calcular_psat(t):
     lnp = a1 + a2 * t + a3 * t**2 + a4 * t**3
     return np.exp(lnp)
 
-def calcular_entalpia(t):
-    b1 = 2.1131
-    b2 = 1.8423
-    b3 = 0.003261
-    b4 = -3.49e-6
-    return b1 + b2 * t + b3 * t**2 + b4 * t**3
+def calcular_entalpia_liquido(t):
+    # Ajuste polinomial baseado em dados do R134a saturado (líquido)
+    return 0.00145 * t**3 + 0.1253 * t**2 + 1.865 * t + 23.97
+
+def calcular_entalpia_vapor(t):
+    # Ajuste polinomial baseado em dados do R134a saturado (vapor)
+    return -0.00086 * t**3 + 0.0635 * t**2 + 0.771 * t + 235.02
 
 def calcular_entropia(t):
     c1 = -2.357
