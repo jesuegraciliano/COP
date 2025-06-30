@@ -32,23 +32,26 @@ def calcular_densidade(t):
 def calcular_propriedades(t_celsius):
     t_kelvin = t_celsius + 273.15
     psat = calcular_psat(t_kelvin)
-    h = calcular_entalpia(t_kelvin)
+    hl = calcular_entalpia_liquido(t_celsius)
+    hv = calcular_entalpia_vapor(t_celsius)
     s = calcular_entropia(t_kelvin)
     rho = calcular_densidade(t_kelvin)
-    return psat, h, s, rho
+    return psat, hl, hv, s, rho
 
 def gerar_tabela(tmin, tmax, passo):
     temperaturas = np.arange(tmin, tmax + passo, passo)
     dados = []
 
     for t in temperaturas:
-        psat, h, s, rho = calcular_propriedades(t)
+        psat, hl, hv, s, rho = calcular_propriedades(t)
         dados.append({
             "Temperatura (°C)": t,
             "Pressão sat (kPa)": round(psat, 2),
-            "Entalpia (kJ/kg)": round(h, 2),
+            "h Líquido (kJ/kg)": round(hl, 2),
+            "h Vapor (kJ/kg)": round(hv, 2),
             "Entropia (kJ/kg·K)": round(s, 4),
             "Densidade (kg/m³)": round(rho, 2)
         })
 
     return pd.DataFrame(dados)
+
