@@ -1,70 +1,80 @@
 import numpy as np
 import pandas as pd
-import streamlit as st
 
-# Constantes do programa original (baseado no FORTRAN)
-A = 24.80339880
-B = -20.94038084
-C = 2.3450814E-1
-D = -8.9055604E-4
-E = -1.09954480E-6
-F = -1.5095487E3
-TO = 233.15  # T0 em K
-TC = 374.2
-B1 = 0.001
-VK = 0.00000001
-P0 = 1.0
-SU = 0.001
-TRNO = (1.0 - (TO / TC)) ** (1.0 / 3.0)
-TR = (1.0 - (TO / TC))
+# Constantes
+T0 = 273.15
+A = 24.8033988
+B = -0.5403825
+C = -0.24503582
+D = 0.003420833
+E = 1168.17
+F = 227.971
+TC = 374.21
+CP1 = 0.52549765
+CP2 = 2.219052e-2
+CP3 = -1.54896e-5
+CP4 = 0.0
+CP5 = 0.0
+B1 = 1.0
+DLOG = np.log
+DEXP = np.exp
+DABS = np.abs
 
-# Constantes de entalpia e entropia (parciais)
-C1, C2, C3, C4, C5 = 0.0012395, 0.002538, 0.0024762, 0.0, 0.0
-CP1, CP2, CP3, CP4, CP5 = 0.0, 0.0, 0.0, 0.0, 0.0
+def calcular_propriedades(temp_min, temp_max, passo):
+    resultados = []
 
-# Interface do usuário
-st.title("Tabela de Propriedades Termodinâmicas - R134a")
-t_min = st.number_input("Temperatura mínima (°C)", value=-40.0, step=5.0)
-t_max = st.number_input("Temperatura máxima (°C)", value=60.0, step=5.0)
-t_step = st.number_input("Passo de temperatura (°C)", value=5.0, step=1.0)
+    for T_C in np.arange(temp_min, temp_max + 0.1, passo):
+        T = T_C + T0
+        TR = T / TC
+        F_T = (F - T)
+        F_FT = F_T / T
+        log_term = np.log(F_T / T)
 
-temps_C = np.arange(t_min, t_max + 0.1, t_step)
-temps_K = temps_C + 273.15
+        P = DEXP(A + B / T + C * T0 + D * (T0 ** 2) + E * F_FT * log_term)
 
-# Inicialização
-data = []
+        BET = DEXP(-B / T + C * T + D * T ** 2 + E * F_FT * log_term)
+        DL = (0.9992 + 0.00144 * (1.0 - TR) + 0.0039 * (1.0 - TR) ** 2 +
+              0.0026 * (1.0 - TR) ** 3 + 0.0014 * (1.0 - TR) ** 4) / TR
 
-for T in temps_K:
-    TR = (1.0 - T / TC)
-    BET = np.exp(-TR / TC)
-    
-    # Pressão saturada
-    P = np.exp(A + B / T + C * T + D * T**2 + E * (F - T) * np.log(F - T) / T**2)
-    
-    # Densidade do líquido e vapor
-    DL = 1273 - 0.8 * (T - TO)  # aproximação simples
-    DV = 285.71 - 0.5 * (T - TO)  # aproximação simples
-    
-    # Entalpia líquido (HL) e vapor (HV) saturados
-    HL = A + B / T + C * T + D * T**2 + E * (F - T) * np.log(F - T) / T**2
-    HV = HL + 211  # diferença estimada entre HV e HL para ajuste (refinável)
+        VL = 1.0 / DL
 
-    # Entropia (SL e SV)
-    SL = 0.1 + 0.002 * (T - TO)
-    SV = 0.93 - 0.0005 * (T - TO)
+        # Newton-Raphson para encontrar VV
+        VV = 1.0 / DL
+        for _ in range(100):
+            FVV = (R := T * (VV - B1)) - (A + B2 := T0 + C2 := DEXP(-BET / TC)) * DEXP(-BET / TC) / (VV - B1)
+            DFVV = ((FVV - R) / 0.00001)
+            VV -= FVV / DFVV
+            if abs(FVV) < 0.00001:
+                break
 
-    data.append([T - 273.15, round(P, 2), round(DL, 2), round(DV, 2), round(HL, 2), round(HV, 2), round(SL, 4), round(SV, 4)])
+        DV = 1.0 / VV
 
-# DataFrame com labels em português
-df = pd.DataFrame(data, columns=["T (°C)", "P (kPa)", "DL (kg/m³)", "DV (kg/m³)", "HL (kJ/kg)", "HV (kJ/kg)", "SL (kJ/kg·K)", "SV (kJ/kg·K)"])
+        # HL e HV (entalpias líquida e vapor)
+        UV1 = CP1 * (T - T0) + CP2 * (T ** 2 - T0 ** 2) / 2 + CP3 * (T ** 3 - T0 ** 3) / 3
+        UV2 = CP4 * (DEXP(DLOG(T / T0) * 4.0) - DEXP(DLOG(T0) * 4.0)) / 4 + CP5 * (T - T0)
+        UV3 = (A ** 2 + (1.0 + BET * T / TC) * C2 * BET) * (1.0 / (VV - B1) - 1.0 / (VL - B1))
+        UV4 = (A3 := 3 + 3 * A4 := 4.0) * (1.0 / (VV - B1) ** 2 - 1.0 / (VL - B1) ** 2)
+        UV = UV1 + UV2 + UV3 + UV4
+        HV = UV + P * VV
+        HL = UV + P * VL
 
-# Formatação brasileira
-df_styled = df.style.format(decimal=",", thousands=".")
+        # Entropias
+        S1 = CP1 * DLOG(T / T0) + CP2 * (T - T0) + CP3 * (T ** 2 - T0 ** 2) / 2
+        S2 = CP4 * DLOG(DABS(VL - B1)) - DLOG(DABS(VV - B1))
+        S3 = -B2 * C2 * BET / TC * BET * (1.0 / (VV - B1) - 1.0 / (VL - B1))
+        S4 = (B3 := C3 * BET * TC * BET) * (1.0 / (VV - B1) ** 2 - 1.0 / (VL - B1) ** 2)
+        SL = S1 + S2 + S3 + S4
+        SV = SL + (HV - HL) / T
 
-# Tabela
-st.markdown("### 📊 Tabela de Propriedades")
-st.dataframe(df_styled, use_container_width=True)
+        resultados.append({
+            "T (°C)": round(T_C, 2),
+            "P (kPa)": round(P, 2),
+            "DL (kg/m³)": round(DL, 2),
+            "DV (kg/m³)": round(DV, 2),
+            "HL (kJ/kg)": round(HL, 2),
+            "HV (kJ/kg)": round(HV, 2),
+            "SL (kJ/kg·K)": round(SL, 4),
+            "SV (kJ/kg·K)": round(SV, 4),
+        })
 
-# Botão para download
-csv = df.to_csv(index=False, sep=";", decimal=",").encode("utf-8")
-st.download_button("📥 Baixar como CSV", data=csv, file_name="r134a_tabela.csv", mime="text/csv")
+    return pd.DataFrame(resultados)
