@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# Dados extraídos manualmente da tabela fornecida (IMG_0815.jpeg)
+# Dados extraídos da tabela de propriedades para o R134a
 dados = {
     "Temperatura (°C)": list(range(-20, 55, 2)),
     "HL (kJ/kg)": [
@@ -24,23 +24,27 @@ dados = {
 df = pd.DataFrame(dados)
 
 # Título do app
-st.title("Propriedades Termodinâmicas do R134a")
+st.title("Propriedades do R134a: HL e HV")
 
-# Seletor de temperatura
+# Seleção da temperatura
 temperatura = st.slider("Selecione a temperatura (°C):", min_value=-20, max_value=50, step=2)
 
-# Busca os valores correspondentes
+# Busca o valor correspondente
 linha = df[df["Temperatura (°C)"] == temperatura]
 hl = linha["HL (kJ/kg)"].values[0]
 hv = linha["HV (kJ/kg)"].values[0]
 
-# Exibição formatada
-st.subheader("Resultados")
-st.write(f"**Entalpia líquida saturada (HL):** {hl:,.2f} kJ/kg".replace(",", "X").replace(".", ",").replace("X", "."))
-st.write(f"**Entalpia do vapor saturado (HV):** {hv:,.2f} kJ/kg".replace(",", "X").replace(".", ",").replace("X", "."))
+# Exibição com formatação brasileira
+def format_brasil(valor):
+    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# Mostra a tabela inteira (opcional)
+st.subheader("Resultados")
+st.write(f"**Entalpia líquida saturada (HL):** {format_brasil(hl)} kJ/kg")
+st.write(f"**Entalpia do vapor saturado (HV):** {format_brasil(hv)} kJ/kg")
+
+# Exibe tabela completa
 with st.expander("📋 Ver tabela completa"):
-    df_estilizado = df.style.format({"HL (kJ/kg)": "{:,.2f}", "HV (kJ/kg)": "{:,.2f}"})
-    df_estilizado = df_estilizado.format_index(na_rep="", axis=1)
-    st.dataframe(df_estilizado)
+    tabela_formatada = df.copy()
+    tabela_formatada["HL (kJ/kg)"] = tabela_formatada["HL (kJ/kg)"].apply(format_brasil)
+    tabela_formatada["HV (kJ/kg)"] = tabela_formatada["HV (kJ/kg)"].apply(format_brasil)
+    st.dataframe(tabela_formatada)
