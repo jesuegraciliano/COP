@@ -1,94 +1,46 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 
-# Título e entrada de parâmetros
-st.set_page_config(page_title="R134a - Tabela de Propriedades", layout="centered")
-st.title("🌡️ Tabela de Propriedades Termodinâmicas do R134a")
+# Dados extraídos manualmente da tabela fornecida (IMG_0815.jpeg)
+dados = {
+    "Temperatura (°C)": list(range(-20, 55, 2)),
+    "HL (kJ/kg)": [
+        25.19, 30.25, 36.61, 43.81, 50.02, 57.05, 63.31, 70.58, 76.60,
+        84.35, 91.25, 98.52, 105.36, 112.11, 118.72, 125.34, 132.12,
+        138.90, 145.88, 152.92, 159.61, 166.74, 173.45, 180.53, 187.23,
+        193.88, 200.45, 207.29, 214.06, 220.75, 227.41, 234.21, 240.98,
+        247.94, 254.93, 261.94, 268.85, 275.79
+    ],
+    "HV (kJ/kg)": [
+        251.88, 255.65, 259.57, 263.27, 266.84, 270.40, 273.92, 277.48,
+        280.92, 284.33, 287.72, 291.10, 294.39, 297.61, 300.85, 304.01,
+        307.21, 310.32, 313.43, 316.42, 319.51, 322.52, 325.47, 328.44,
+        331.35, 334.26, 337.14, 339.98, 342.77, 345.57, 348.28, 350.94,
+        353.67, 356.37, 359.02, 361.62, 364.17
+    ]
+}
 
-T_min = st.number_input("Temperatura mínima (°C)", value=-40.0, step=5.0, format="%.2f")
-T_max = st.number_input("Temperatura máxima (°C)", value=60.0, step=5.0, format="%.2f")
-T_step = st.number_input("Passo de temperatura (°C)", value=5.0, step=1.0, format="%.2f")
+# Cria o DataFrame
+df = pd.DataFrame(dados)
 
-# Constantes (valores do FORTRAN)
-T0 = 233.15
-A = 24.803998
-B = -0.2405382
-C = 0.001225
-D = -5.164e-6
-E = 6.5e-9
-F = 303.15
-TC = 374.2
-DLOG = np.log
-DEXP = np.exp
+# Título do app
+st.title("Propriedades Termodinâmicas do R134a")
 
-# Inicialização das listas
-T_list = []
-P_list = []
-DL_list = []
-DV_list = []
-HL_list = []
-HV_list = []
-SL_list = []
-SV_list = []
+# Seletor de temperatura
+temperatura = st.slider("Selecione a temperatura (°C):", min_value=-20, max_value=50, step=2)
 
-for T_C in np.arange(T_min, T_max + T_step, T_step):
-    T = T_C + 273.15
-    T_list.append(T_C)
+# Busca os valores correspondentes
+linha = df[df["Temperatura (°C)"] == temperatura]
+hl = linha["HL (kJ/kg)"].values[0]
+hv = linha["HV (kJ/kg)"].values[0]
 
-    # Cálculo da Pressão
-    log_P = (A + B / T + C * T + D * T**2 + E * (F - T) * DLOG(F - T)) * DLOG(F - T)
-    P = np.exp(log_P)
-    P_list.append(P)
+# Exibição formatada
+st.subheader("Resultados")
+st.write(f"**Entalpia líquida saturada (HL):** {hl:,.2f} kJ/kg".replace(",", "X").replace(".", ",").replace("X", "."))
+st.write(f"**Entalpia do vapor saturado (HV):** {hv:,.2f} kJ/kg".replace(",", "X").replace(".", ",").replace("X", "."))
 
-    # Densidade líquida e vapor (simplificado)
-    DL = 1400 - 3.5 * (T_C + 40)
-    DV = 120 + 4.2 * (T_C + 40)
-    DL_list.append(DL)
-    DV_list.append(DV)
-
-    # Entalpias (baseado nos dados reais da tabela)
-    HL = 23.97 + (T_C + 40) * 4.8      # ajustado com base em HL real
-    HV = 235.02 + (T_C + 40) * 1.0     # ajustado com base em HV real
-    HL_list.append(HL)
-    HV_list.append(HV)
-
-    # Entropias (estimativas ajustadas)
-    SL = 0.09983 + (T_C + 40) * 0.00325
-    SV = 0.93202 - (T_C + 40) * 0.00044
-    SL_list.append(SL)
-    SV_list.append(SV)
-
-# Monta o DataFrame
-df = pd.DataFrame({
-    "T (°C)": T_list,
-    "P (kPa)": P_list,
-    "DL (kg/m³)": DL_list,
-    "DV (kg/m³)": DV_list,
-    "HL (kJ/kg)": HL_list,
-    "HV (kJ/kg)": HV_list,
-    "SL (kJ/kg·K)": SL_list,
-    "SV (kJ/kg·K)": SV_list
-})
-
-# Formatar com vírgulas (pt-BR)
-df_styled = df.style.format(decimal=",", thousands=".")
-
-# Exibir tabela
-st.markdown("### 📊 Tabela de Propriedades")
-st.dataframe(df_styled, use_container_width=True)
-
-# Baixar como CSV com separador brasileiro
-csv = df.to_csv(sep=';', index=False, decimal=",").encode('utf-8')
-st.download_button("📥 Baixar como CSV", csv, file_name="tabela_r134a.csv", mime="text/csv")
-
-# Gráfico
-st.markdown("## 📈 Gráficos")
-fig, ax = plt.subplots()
-ax.plot(df["T (°C)"], df["P (kPa)"], marker='o', label="Pressão")
-ax.set_xlabel("Temperatura (°C)")
-ax.set_ylabel("Pressão (kPa)")
-ax.grid(True)
-ax.legend()
-st.pyplot(fig)
+# Mostra a tabela inteira (opcional)
+with st.expander("📋 Ver tabela completa"):
+    df_estilizado = df.style.format({"HL (kJ/kg)": "{:,.2f}", "HV (kJ/kg)": "{:,.2f}"})
+    df_estilizado = df_estilizado.format_index(na_rep="", axis=1)
+    st.dataframe(df_estilizado)
