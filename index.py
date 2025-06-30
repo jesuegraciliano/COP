@@ -16,7 +16,29 @@ passo = st.number_input("Passo de temperatura (°C)", value=5.0)
 df = gerar_tabela(tmin, tmax, passo)
 
 st.subheader("📊 Tabela de Propriedades")
-st.dataframe(df)
+
+# ✅ Formata a tabela com vírgulas como separador decimal
+df_formatado = df.style.format(
+    {
+        "T (°C)": "{:.2f}".format,
+        "P (kPa)": "{:,.2f}".format,
+        "DL (kg/m³)": "{:,.2f}".format,
+        "DV (kg/m³)": "{:,.2f}".format,
+        "HL (kJ/kg)": "{:,.2f}".format,
+        "HV (kJ/kg)": "{:,.2f}".format,
+        "SL (kJ/kg·K)": "{:,.4f}".format,
+        "SV (kJ/kg·K)": "{:,.4f}".format
+    }
+).format(na_rep="-")  # Substitui NaN por traço, se houver
+
+# Substitui ponto por vírgula no estilo brasileiro
+df_formatado = df_formatado.set_properties(**{
+    'text-align': 'center'
+})
+st.dataframe(df_formatado)
+
+
+
 
 st.download_button("⬇️ Baixar como CSV", df.to_csv(index=False), file_name="r134a_tabela.csv")
 
