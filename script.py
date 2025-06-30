@@ -1,75 +1,70 @@
 import numpy as np
 import pandas as pd
+import streamlit as st
 
-# Constantes da equação FORTRAN
-A = 24.8033988
-B = -2.34040884
-C = 0.29495802
-D = -8.249441E-3
-E = -0.1995458
-F = 0.100395
-CP1 = 2.017132E-1
-CP2 = 2.953967E-2
-CP3 = 5.49557E-4
-CP4 = 0.0
-CP5 = 1.0E-6
-B1 = 1.049051E-1
-A2 = 1.04096E-1
-A3 = 1.07395E-1
-C2 = 1.27452E-2
-C3 = -0.6469248E-2
-A4 = 4.571E-3
-A5 = -6.953904E-12
-C5 = -2.051369E-9
-PO = np.exp(A + B + C + D + E + F)
+# Constantes do programa original (baseado no FORTRAN)
+A = 24.80339880
+B = -20.94038084
+C = 2.3450814E-1
+D = -8.9055604E-4
+E = -1.09954480E-6
+F = -1.5095487E3
+TO = 233.15  # T0 em K
+TC = 374.2
+B1 = 0.001
+VK = 0.00000001
+P0 = 1.0
+SU = 0.001
+TRNO = (1.0 - (TO / TC)) ** (1.0 / 3.0)
+TR = (1.0 - (TO / TC))
 
-T0 = 233.15  # K, referência: -40°C
+# Constantes de entalpia e entropia (parciais)
+C1, C2, C3, C4, C5 = 0.0012395, 0.002538, 0.0024762, 0.0, 0.0
+CP1, CP2, CP3, CP4, CP5 = 0.0, 0.0, 0.0, 0.0, 0.0
 
-def calcular_propriedades(t_c):
-    t_k = t_c + 273.15
-    tr = (t_k - T0) / T0
-    beta = np.exp(-tr)
+# Interface do usuário
+st.title("Tabela de Propriedades Termodinâmicas - R134a")
+t_min = st.number_input("Temperatura mínima (°C)", value=-40.0, step=5.0)
+t_max = st.number_input("Temperatura máxima (°C)", value=60.0, step=5.0)
+t_step = st.number_input("Passo de temperatura (°C)", value=5.0, step=1.0)
 
-    # Pressão
-    p = np.exp(A + B / t_k + C * np.log(t_k) + D * t_k**2 + E * t_k + F * t_k**0.5)
+temps_C = np.arange(t_min, t_max + 0.1, t_step)
+temps_K = temps_C + 273.15
 
-    # Densidade líquida
-    dl = (0.384 + 0.291 * (1 - tr)**(1 / 3) + 0.292 * (1 - tr)**(2 / 3) + 0.306 * (1 - tr)**(4 / 3)) / 0.001
+# Inicialização
+data = []
 
-    # Densidade vapor
-    dv = 1 / (0.0035 + 0.0042 * tr + 0.008 * tr**2)
+for T in temps_K:
+    TR = (1.0 - T / TC)
+    BET = np.exp(-TR / TC)
+    
+    # Pressão saturada
+    P = np.exp(A + B / T + C * T + D * T**2 + E * (F - T) * np.log(F - T) / T**2)
+    
+    # Densidade do líquido e vapor
+    DL = 1273 - 0.8 * (T - TO)  # aproximação simples
+    DV = 285.71 - 0.5 * (T - TO)  # aproximação simples
+    
+    # Entalpia líquido (HL) e vapor (HV) saturados
+    HL = A + B / T + C * T + D * T**2 + E * (F - T) * np.log(F - T) / T**2
+    HV = HL + 211  # diferença estimada entre HV e HL para ajuste (refinável)
 
-    # Entalpia líquido
-    cp_liq = CP1 + CP2 * t_k + CP3 * t_k**2 + CP4 * t_k**3 + CP5 / t_k
-    hl = cp_liq * (t_k - T0)
+    # Entropia (SL e SV)
+    SL = 0.1 + 0.002 * (T - TO)
+    SV = 0.93 - 0.0005 * (T - TO)
 
-    # Entalpia vapor (modelo derivado da HL + termo de integração)
-    hv = hl + (A5 + B1 * t_k + C5 * beta) / (1 - B1)
+    data.append([T - 273.15, round(P, 2), round(DL, 2), round(DV, 2), round(HL, 2), round(HV, 2), round(SL, 4), round(SV, 4)])
 
-    # Entropia líquido
-    sl = 0.0983 + 0.005 * (t_k - T0) / T0  # aprox.
+# DataFrame com labels em português
+df = pd.DataFrame(data, columns=["T (°C)", "P (kPa)", "DL (kg/m³)", "DV (kg/m³)", "HL (kJ/kg)", "HV (kJ/kg)", "SL (kJ/kg·K)", "SV (kJ/kg·K)"])
 
-    # Entropia vapor (mais elevada)
-    sv = sl + 0.8  # aprox. constante para saturado
+# Formatação brasileira
+df_styled = df.style.format(decimal=",", thousands=".")
 
-    return p, dl, dv, hl, hv, sl, sv
+# Tabela
+st.markdown("### 📊 Tabela de Propriedades")
+st.dataframe(df_styled, use_container_width=True)
 
-def gerar_tabela(tmin, tmax, passo):
-    temperaturas = np.arange(tmin, tmax + passo, passo)
-    dados = []
-
-    for t in temperaturas:
-        p, dl, dv, hl, hv, sl, sv = calcular_propriedades(t)
-        dados.append({
-            "T (°C)": t,
-            "P (kPa)": round(p, 2),
-            "DL (kg/m³)": round(dl, 2),
-            "DV (kg/m³)": round(dv, 2),
-            "HL (kJ/kg)": round(hl, 2),
-            "HV (kJ/kg)": round(hv, 2),
-            "SL (kJ/kg·K)": round(sl, 4),
-            "SV (kJ/kg·K)": round(sv, 4)
-        })
-
-    df = pd.DataFrame(dados)
-    return df
+# Botão para download
+csv = df.to_csv(index=False, sep=";", decimal=",").encode("utf-8")
+st.download_button("📥 Baixar como CSV", data=csv, file_name="r134a_tabela.csv", mime="text/csv")
